@@ -134,6 +134,7 @@ class NeuralBlockTrainer(object):
 
                     # alpha = min(1.0, math.exp(q_prev_given_cand + p_cand - q_cand_given_prev - p_prev))
                     alpha = min(1.0, math.exp(q_prev_given_cand + p_cand - q_cand_given_prev - p_prev))
+                    alpha *= 1000.0
                     alphas.append(alpha)
                     p_ratios.append(math.exp(p_cand - p_prev))
                     q_ratios.append(math.exp(q_prev_given_cand - q_cand_given_prev))
@@ -145,7 +146,7 @@ class NeuralBlockTrainer(object):
 
                     p = random.random()
 
-                    if p <= alpha:
+                    if p <= 0.4:
                         sample = candidate_sample
                         p_acceptance.append(1)
                     else:

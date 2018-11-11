@@ -228,10 +228,11 @@ class NeuralBlockMotif(object):
                 entry *= 1 - e
                 entry_0 *= 1 - f
 
-        if entry == 0.0 and entry_0 == 0.0:
-            threshold = 0.5
-        else:
-            threshold = entry / (entry + entry_0)
+        print("node", node)
+        print("sample", sample)
+        assert(entry + entry_0 != 0.0)
+
+        threshold = entry / (entry + entry_0)
 
         p = random.random()
 
