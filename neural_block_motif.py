@@ -53,6 +53,15 @@ class NeuralBlockMotif(object):
         if self.check_parents(node_4) or self.check_edges(node_4):
             return None
 
+        # print("Node 11", node_11)
+        # print("Node 6", node_6)
+        # print("Node 7", node_7)
+        # print("Node 3", node_3)
+        # print("Node 0", node_0)
+        # print("Node 1", node_1)
+        # print("Node 2", node_2)
+        # print("Node 4", node_4)
+
         node_10 = self.set_subtraction(self.edges[node_6], node_11)
         if self.check_parents(node_10) or self.check_edges(node_10):
             return None
@@ -152,6 +161,7 @@ class NeuralBlockMotif(object):
     def set_subtraction(self, lst1, node):
         temp_set = set(lst1) - set([node])
         assert(len(temp_set) == 1)
+
         return temp_set.pop()
 
     def find_common(self, node_1, node_2, parents=True):
@@ -201,14 +211,50 @@ class NeuralBlockMotif(object):
         conditional = self.get_conditional(node, sample)
 
         entry = self.probs[node][conditional]
+        entry_0 = 1.0 - entry
+
+        for child in self.edges[node]:
+
+            conditional = self.gibbs_conditional(child, node, 1, sample)
+            conditional_0 = self.gibbs_conditional(child, node, 0, sample)
+
+            e = self.probs[child][conditional]
+            f = self.probs[child][conditional_0]
+
+            if sample[child] == 1.0:
+                entry *= e
+                entry_0 *= f
+            else:
+                entry *= 1 - e
+                entry_0 *= 1 - f
+
+        if entry == 0.0 and entry_0 == 0.0:
+            threshold = 0.5
+        else:
+            threshold = entry / (entry + entry_0)
 
         p = random.random()
 
-        if p <= entry:
+        if p <= threshold:
             sample[node] = 1
         else:
             sample[node] = 0
         return sample
+
+    def gibbs_conditional(self, node, parent, value, sample):
+        parents = self.parents[node]
+        assert(parent in parents)
+        if len(parents) == 1:
+            conditional = (parent, value)
+        else:
+            if parents[0] == parent:
+                conditional = (parent, value, parents[1], sample[parents[1]])
+            else:
+                assert(parent == parents[1])
+                conditional = (parents[0], sample[parents[0]], parent, value)
+        return conditional
+
+
 
     def get_conditional(self, node, sample):
         parents = self.parents[node]
@@ -230,9 +276,9 @@ class NeuralBlockMotif(object):
                 p = random.random()
 
                 if p <= entry:
-                    sample[node] = 1
+                    sample[node] = 1.0
                 else:
-                    sample[node] = 0
+                    sample[node] = 0.0
                 i += 1
         assert(i == len(output[0]))
         return sample
@@ -260,7 +306,7 @@ class NeuralBlockMotif(object):
         return log_p
 
     def joint_prob_sample(self, sample):
-        log_p = 0
+        log_p = 0.0
         for node in self.nodes:
             conditional = self.get_conditional(node, sample)
             entry = self.probs[node][conditional]
@@ -270,4 +316,14 @@ class NeuralBlockMotif(object):
                 log_p += math.log(1 - entry + 1e-6)
         return log_p
 
-
+    def joint_prob_sample_smaller(self, sample, block):
+        log_p = 0.0
+        for motif_node in self.motif_nodes:
+            node = block[motif_node]
+            conditional = self.get_conditional(node, sample)
+            entry = self.probs[node][conditional]
+            if sample[node] == 1.0:
+                log_p += math.log(entry + 1e-6)
+            else:
+                log_p += math.log(1 - entry + 1e-6)
+        return log_p

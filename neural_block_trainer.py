@@ -104,45 +104,66 @@ class NeuralBlockTrainer(object):
         losses = []
         all_samples = []
         alphas = []
+        p_ratios = []
+        q_ratios = []
+        p_acceptance = []
+
+        new_order = [i for i in range(len(motif.nodes))]
+
         for epoch in range(self.testing_epochs):
             epoch_samples = []
-            for node in motif.nodes:
+            for node in new_order:
                 if node in motif.evidence_vars:
                     continue
                 block = motif.blocks[node]
                 if gibbs or block is None:
                     sample = motif.gibbs_sample(node, sample)
                 else:
+
                     output = self.model.sample_step(motif, block, sample)
                     candidate_sample = motif.neural_block_sample(output, block, sample)
 
-                    reverse_output = self.model.sample_step(motif, block, candidate_sample)
+                    # reverse_output = self.model.sample_step(motif, block, candidate_sample)
                     # print("Output", output)
                     # print("Reverse output", reverse_output)
 
-                    q_prev_given_cand = motif.cond_prob_sample(reverse_output, block, sample)
+                    q_prev_given_cand = motif.cond_prob_sample(output, block, sample)
                     q_cand_given_prev = motif.cond_prob_sample(output, block, candidate_sample)
-                    p_cand = motif.joint_prob_sample(candidate_sample)
-                    p_prev = motif.joint_prob_sample(sample)
+                    p_cand = motif.joint_prob_sample_smaller(candidate_sample, block)
+                    p_prev = motif.joint_prob_sample_smaller(sample, block)
 
+                    # alpha = min(1.0, math.exp(q_prev_given_cand + p_cand - q_cand_given_prev - p_prev))
                     alpha = min(1.0, math.exp(q_prev_given_cand + p_cand - q_cand_given_prev - p_prev))
                     alphas.append(alpha)
+                    p_ratios.append(math.exp(p_cand - p_prev))
+                    q_ratios.append(math.exp(q_prev_given_cand - q_cand_given_prev))
+
+                    # print("P cand {} P prev {}".format(math.exp(p_cand), math.exp(p_prev)))
+                    # print("P ratio", math.exp(p_cand - p_prev))
+                    # print("Q ratio", math.exp(q_prev_given_cand - q_cand_given_prev))
+                    # print("Alpha", alpha)
 
                     p = random.random()
 
                     if p <= alpha:
                         sample = candidate_sample
+                        p_acceptance.append(1)
                     else:
                         sample = sample.copy()
+                        p_acceptance.append(0)
                 all_samples.append(sample)
                 epoch_samples.append(sample)
-            loss = motif.evaluate_samples(epoch_samples)
+            loss = motif.evaluate_samples(all_samples)
             losses.append(loss)
             if epoch % 10 == 0:
                 print("Epoch {} Loss {}".format(epoch, loss))
 
         loss = motif.evaluate_samples(all_samples)
         print("Total loss {}".format(loss))
+        print("Mean alpha {}".format(np.mean(alphas)))
+        print("Mean p {}".format(np.mean(p_ratios)))
+        print("Mean q {}".format(np.mean(q_ratios)))
+        print("Mean acceptance {}".format(np.mean(p_acceptance)))
         pickle.dump(losses, open("testing/{}_{}losses.pkl".format(self.checkpoint_name, 'gibbs_' if gibbs else ''), "wb"))
 
 
@@ -152,7 +173,7 @@ def main():
     parser.add_argument('--hidden_dim', type=int, default=480)
     parser.add_argument('--num_mixtures', type=int, default=12)
     parser.add_argument('--proposal_variables', type=int, default=9)
-    parser.add_argument('--learning_rate', type=float, default=0.01)
+    parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--training_epochs', type=int, default=1000)
     parser.add_argument('--training_batch_size', type=int, default=1024)
     parser.add_argument('--seed', '-s', type=int, default=1)

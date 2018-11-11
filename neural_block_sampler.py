@@ -44,11 +44,26 @@ class NeuralBlockSampler(object):
 
     def sample_step(self, motif, block, sample):
         input = []
+        alt_ordering = [0, 2, 1, 3]
+
         for motif_node in motif.motif_nodes:
             node = block[motif_node]
             cpt = motif.probs[node]
-            for _, entry in cpt.items():
-                input.append(entry)
+
+            if motif_node not in motif.motif_parents:
+                for _, entry in cpt.items():
+                    input.append(entry)
+            else:
+                motif_parent = motif.motif_parents[motif_node][0]
+                node_parent = block[motif_parent]
+
+                if node_parent == motif.parents[node][0]:
+                    for _, entry in cpt.items():
+                        input.append(entry)
+                else:
+                    entry_list = [entry for _, entry in cpt.items()]
+                    for i in alt_ordering:
+                        input.append(entry_list[i])
 
         for motif_node in motif.nodes:
             if motif_node in motif.motif_evidence_vars:
